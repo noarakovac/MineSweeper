@@ -1,0 +1,30 @@
+class Random {
+    static int seed;
+
+    function void init() {
+        let seed = 12345;
+        return;
+    }
+
+    function int next() {
+
+        let seed = (seed * 109) + 1021;
+        if (seed < 0) {
+            let seed = -seed;
+        }
+        if (seed < 0) {
+
+            let seed = 173;
+        }
+        return seed;
+    }
+
+    function int randInt(int lower, int upper) {
+        var int span;
+        let span = upper - lower;
+        if (span < 1) {
+            return lower;
+        }
+        return Maths.mod(Random.next(), span) + lower;
+    }
+}

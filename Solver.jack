@@ -1,0 +1,439 @@
+
+class Solver {
+    field Board board;
+    field int moves, guesses, constraintMoves;
+
+    constructor Solver new(Board b) {
+        let board = b;
+        let moves = 0;
+        let guesses = 0;
+        let constraintMoves = 0;
+        return this;
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method int getMoves() {
+        return moves;
+    }
+
+    method int getGuesses() {
+        return guesses;
+    }
+
+    method int getConstraintMoves() {
+        return constraintMoves;
+    }
+
+
+    method int solveStep() {
+        var int result;
+
+        if (board.gameWon()) {
+            return 0;
+        }
+
+        let result = obviousStep();
+        if (~(result = 0)) {
+            let moves = moves + 1;
+            return result;
+        }
+
+        let result = constraintStep();
+        if (~(result = 0)) {
+            let moves = moves + 1;
+            let constraintMoves = constraintMoves + 1;
+            return result;
+        }
+
+        let result = guessStep();
+        if (~(result = 0)) {
+            let moves = moves + 1;
+            let guesses = guesses + 1;
+        }
+        return result;
+    }
+
+
+    method int obviousStep() {
+        var int x, y, number, flagged, unknown, remaining, result;
+        let y = 0;
+        while (y < board.getHeight()) {
+            let x = 0;
+            while (x < board.getWidth()) {
+                let number = board.getVisibleNumber(x, y);
+                if (number > -1) {
+                    let flagged = countFlaggedNeighbors(x, y);
+                    let unknown = countUnknownNeighbors(x, y);
+                    let remaining = number - flagged;
+
+                    if ((unknown > 0) & (remaining = 0)) {
+                        let result = revealOneUnknownNeighbor(x, y);
+                        if (~(result = 0)) {
+                            return result;
+                        }
+                    }
+
+                    if ((unknown > 0) & (remaining = unknown)) {
+                        let result = flagOneUnknownNeighbor(x, y);
+                        if (~(result = 0)) {
+                            return result;
+                        }
+                    }
+                }
+                let x = x + 1;
+            }
+            let y = y + 1;
+        }
+        return 0;
+    }
+
+
+    method int constraintStep() {
+        var int ax, ay, bx, by, ox, oy;
+        var int numA, numB, flagsA, flagsB, unkA, unkB;
+        var int remA, remB, common, diffSize, diffMines, result;
+
+        let ay = 0;
+        while (ay < board.getHeight()) {
+            let ax = 0;
+            while (ax < board.getWidth()) {
+                let numA = board.getVisibleNumber(ax, ay);
+                if (numA > -1) {
+                    let flagsA = countFlaggedNeighbors(ax, ay);
+                    let unkA = countUnknownNeighbors(ax, ay);
+                    let remA = numA - flagsA;
+
+                    if ((unkA > 0) & ~(remA < 0) & ~(remA > unkA)) {
+                        let oy = -2;
+                        while (oy < 3) {
+                            let ox = -2;
+                            while (ox < 3) {
+                                let bx = ax + ox;
+                                let by = ay + oy;
+
+                                if (board.isInside(bx, by) & ~((bx = ax) & (by = ay))) {
+                                    let numB = board.getVisibleNumber(bx, by);
+                                    if (numB > -1) {
+                                        let flagsB = countFlaggedNeighbors(bx, by);
+                                        let unkB = countUnknownNeighbors(bx, by);
+                                        let remB = numB - flagsB;
+
+                                        if ((unkB > unkA) & ~(remB < 0) & ~(remB > unkB)) {
+                                            let common = countCommonUnknown(ax, ay, bx, by);
+
+                                            
+                                            if (common = unkA) {
+                                                let diffSize = unkB - unkA;
+                                                let diffMines = remB - remA;
+
+                                                if ((diffSize > 0) & (diffMines = 0)) {
+                                                    let result = revealOneDifference(bx, by, ax, ay);
+                                                    if (~(result = 0)) {
+                                                        return result;
+                                                    }
+                                                }
+
+                                                if ((diffSize > 0) & (diffMines = diffSize)) {
+                                                    let result = flagOneDifference(bx, by, ax, ay);
+                                                    if (~(result = 0)) {
+                                                        return result;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                let ox = ox + 1;
+                            }
+                            let oy = oy + 1;
+                        }
+                    }
+                }
+                let ax = ax + 1;
+            }
+            let ay = ay + 1;
+        }
+        return 0;
+    }
+
+
+    method int guessStep() {
+        var int x, y, score, bestScore, bestX, bestY;
+        var boolean found, hitMine;
+
+        if (board.countUnknownCells() = (board.getWidth() * board.getHeight())) {
+            let bestX = board.getWidth() / 2;
+            let bestY = board.getHeight() / 2;
+            let hitMine = board.reveal(bestX, bestY);
+            if (hitMine) {
+                return -1;
+            }
+            return 3;
+        }
+
+        let found = false;
+        let bestScore = 1000;
+        let y = 0;
+        while (y < board.getHeight()) {
+            let x = 0;
+            while (x < board.getWidth()) {
+                if (board.isHidden(x, y)) {
+                    let score = estimateRisk(x, y);
+                    if ((~found) | (score < bestScore)) {
+                        let found = true;
+                        let bestScore = score;
+                        let bestX = x;
+                        let bestY = y;
+                    }
+                }
+                let x = x + 1;
+            }
+            let y = y + 1;
+        }
+
+        if (~found) {
+            return 0;
+        }
+
+        let hitMine = board.reveal(bestX, bestY);
+        if (hitMine) {
+            return -1;
+        }
+        return 3;
+    }
+
+    method int estimateRisk(int x, int y) {
+        var int dx, dy, nx, ny, number;
+        var int unknown, flagged, remaining, localRisk;
+        var int riskSum, constraintCount, globalUnknown, globalRemaining;
+
+        let riskSum = 0;
+        let constraintCount = 0;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = x + dx;
+                    let ny = y + dy;
+                    if (board.isInside(nx, ny)) {
+                        let number = board.getVisibleNumber(nx, ny);
+                        if (number > -1) {
+                            let unknown = countUnknownNeighbors(nx, ny);
+                            if (unknown > 0) {
+                                let flagged = countFlaggedNeighbors(nx, ny);
+                                let remaining = number - flagged;
+                                if (remaining < 0) {
+                                    let remaining = 0;
+                                }
+                                if (remaining > unknown) {
+                                    let remaining = unknown;
+                                }
+                                let localRisk = (remaining * 100) / unknown;
+                                let riskSum = riskSum + localRisk;
+                                let constraintCount = constraintCount + 1;
+                            }
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+
+        if (constraintCount > 0) {
+            return riskSum / constraintCount;
+        }
+
+        let globalUnknown = board.countUnknownCells();
+        if (globalUnknown < 1) {
+            return 100;
+        }
+        let globalRemaining = board.getMineCount() - board.getFlagCount();
+        if (globalRemaining < 0) {
+            let globalRemaining = 0;
+        }
+        return (globalRemaining * 100) / globalUnknown;
+    }
+
+    method int countUnknownNeighbors(int x, int y) {
+        var int dx, dy, nx, ny, count;
+        let count = 0;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = x + dx;
+                    let ny = y + dy;
+                    if (board.isInside(nx, ny)) {
+                        if (board.isHidden(nx, ny)) {
+                            let count = count + 1;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return count;
+    }
+
+    method int countFlaggedNeighbors(int x, int y) {
+        var int dx, dy, nx, ny, count;
+        let count = 0;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = x + dx;
+                    let ny = y + dy;
+                    if (board.isInside(nx, ny)) {
+                        if (board.getVisibleState(nx, ny) = 2) {
+                            let count = count + 1;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return count;
+    }
+
+    method int revealOneUnknownNeighbor(int x, int y) {
+        var int dx, dy, nx, ny;
+        var boolean hitMine;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = x + dx;
+                    let ny = y + dy;
+                    if (board.isInside(nx, ny)) {
+                        if (board.isHidden(nx, ny)) {
+                            let hitMine = board.reveal(nx, ny);
+                            if (hitMine) {
+                                return -1;
+                            }
+                            return 1;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return 0;
+    }
+
+    method int flagOneUnknownNeighbor(int x, int y) {
+        var int dx, dy, nx, ny;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = x + dx;
+                    let ny = y + dy;
+                    if (board.isInside(nx, ny)) {
+                        if (board.isHidden(nx, ny)) {
+                            do board.flag(nx, ny);
+                            return 2;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return 0;
+    }
+
+    method int countCommonUnknown(int ax, int ay, int bx, int by) {
+        var int dx, dy, nx, ny, count;
+        let count = 0;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = ax + dx;
+                    let ny = ay + dy;
+                    if (board.isInside(nx, ny)) {
+                        if ((board.isHidden(nx, ny)) & isNeighborOf(nx, ny, bx, by)) {
+                            let count = count + 1;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return count;
+    }
+
+
+    method int revealOneDifference(int bx, int by, int ax, int ay) {
+        var int dx, dy, nx, ny;
+        var boolean hitMine;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = bx + dx;
+                    let ny = by + dy;
+                    if (board.isInside(nx, ny)) {
+                        if ((board.isHidden(nx, ny)) & ~isNeighborOf(nx, ny, ax, ay)) {
+                            let hitMine = board.reveal(nx, ny);
+                            if (hitMine) {
+                                return -1;
+                            }
+                            return 1;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return 0;
+    }
+
+    method int flagOneDifference(int bx, int by, int ax, int ay) {
+        var int dx, dy, nx, ny;
+        let dy = -1;
+        while (dy < 2) {
+            let dx = -1;
+            while (dx < 2) {
+                if (~((dx = 0) & (dy = 0))) {
+                    let nx = bx + dx;
+                    let ny = by + dy;
+                    if (board.isInside(nx, ny)) {
+                        if ((board.isHidden(nx, ny)) & ~isNeighborOf(nx, ny, ax, ay)) {
+                            do board.flag(nx, ny);
+                            return 2;
+                        }
+                    }
+                }
+                let dx = dx + 1;
+            }
+            let dy = dy + 1;
+        }
+        return 0;
+    }
+
+    method boolean isNeighborOf(int px, int py, int cx, int cy) {
+        var int dx, dy;
+        let dx = Math.abs(px - cx);
+        let dy = Math.abs(py - cy);
+        return ((dx < 2) & (dy < 2) & ~((dx = 0) & (dy = 0)));
+    }
+}
