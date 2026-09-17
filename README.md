@@ -96,3 +96,12 @@ otvaranje ploče.
   cijele ploče svaki potez.
 
 
+## Autori
+
+- Noa Rakovac
+- David Sorgho
+- Petar Pavan
+
+
+
+
