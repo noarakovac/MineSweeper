@@ -1,5 +1,0 @@
-class Maths {
-    function int mod(int x, int y) {
-        return x - (y * (x / y));
-    }
-}
