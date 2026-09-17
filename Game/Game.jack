@@ -1,0 +1,595 @@
+class Game {
+    field Board board;
+    field Solver solver;
+    field int cursorX, cursorY;
+    field boolean gameLost;
+
+    field boolean timerRunning;
+    field int timerSeconds, timerTicks;
+    field int currentLevel;  
+
+
+    field int customWidth, customHeight, customMines;
+
+    constructor Game new() {
+        let board = null;
+        let solver = null;
+        let cursorX = 0;
+        let cursorY = 0;
+        let gameLost = false;
+        let timerRunning = false;
+        let timerSeconds = 0;
+        let timerTicks = 0;
+        let currentLevel = 1;
+        return this;
+    }
+
+    method void dispose() {
+        if (~(solver = null)) {
+            do solver.dispose();
+        }
+        if (~(board = null)) {
+            do board.dispose();
+        }
+        do Memory.deAlloc(this);
+        return;
+    }
+
+
+    method void initLevel(int level) {
+        if (~(solver = null)) {
+            do solver.dispose();
+        }
+        if (~(board = null)) {
+            do board.dispose();
+        }
+
+        let currentLevel = level;
+        if (level = 1) {   
+            let board = Board.new(9, 9, 10);
+            let cursorX = 4;
+            let cursorY = 4;
+        } else {
+            if (level = 2) {   
+                let board = Board.new(16, 10, 25);
+                let cursorX = 8;
+                let cursorY = 5;
+            } else {
+                if (level = 3) {  
+                    let board = Board.new(20, 10, 44);
+                    let cursorX = 10;
+                    let cursorY = 5;
+                } else {   
+                    let board = Board.newDemo();
+                    let cursorX = 8;
+                    let cursorY = 5;
+                }
+            }
+        }
+
+        let solver = Solver.new(board);
+        let gameLost = false;
+        let timerRunning = false;
+        let timerSeconds = 0;
+        let timerTicks = 0;
+        return;
+    }
+
+    method void resetCurrent() {
+        if (currentLevel = 5) {
+            do startCustomBoard(customWidth, customHeight, customMines);
+        } else {
+            do initLevel(currentLevel);
+        }
+        return;
+    }
+
+    method void startCustomLevel() {
+        var int w, h, m, maxMines;
+        var boolean valid;
+
+        let valid = false;
+        while (~valid) {
+            do Screen.clearScreen();
+            do drawCustomPromptScreen();
+
+            do Output.moveCursor(8, 5);
+            let w = Keyboard.readInt("WIDTH (3-20): ");
+            do Output.moveCursor(10, 5);
+            let h = Keyboard.readInt("HEIGHT (3-10): ");
+
+            if ((w < 3) | (w > 20) | (h < 3) | (h > 10) | ((w * h) < 11)) {
+                do Output.moveCursor(15, 5);
+                do Output.printString("INVALID SIZE (MIN 11 CELLS, MAX 20x10) - PRESS KEY");
+                do waitForAnyKey();
+            } else {
+                let maxMines = (w * h) - 10;
+                do Output.moveCursor(12, 5);
+                do Output.printString("MINES (1-");
+                do Output.printInt(maxMines);
+                do Output.printString("): ");
+                let m = Keyboard.readInt("");
+
+                if ((m < 1) | (m > maxMines)) {
+                    do Output.moveCursor(15, 5);
+                    do Output.printString("TOO MANY MINES (MAX: W*H-10) - PRESS ANY KEY");
+                    do waitForAnyKey();
+                } else {
+                    let valid = true;
+                }
+            }
+        }
+
+        do startCustomBoard(w, h, m);
+        return;
+    }
+
+    method void drawCustomPromptScreen() {
+        do Output.moveCursor(2, 10);
+        do Output.printString("CUSTOM GAME SETUP");
+        do Output.moveCursor(4, 3);
+        do Output.printString("WIDTH 3-20 AND HEIGHT 3-10 SO IT FITS THE SCREEN.");
+        do Output.moveCursor(5, 3);
+        do Output.printString("MINE LIMIT: 1 TO (WIDTH * HEIGHT - 10).");
+        return;
+    }
+
+    method void waitForAnyKey() {
+        while (Keyboard.keyPressed() = 0) {
+            do Sys.wait(10);
+        }
+        while (~(Keyboard.keyPressed() = 0)) {
+            do Sys.wait(10);
+        }
+        return;
+    }
+
+    method void startCustomBoard(int w, int h, int m) {
+        if (~(solver = null)) {
+            do solver.dispose();
+        }
+        if (~(board = null)) {
+            do board.dispose();
+        }
+
+        let currentLevel = 5;
+        let customWidth = w;
+        let customHeight = h;
+        let customMines = m;
+        let board = Board.new(w, h, m);
+        let cursorX = w / 2;
+        let cursorY = h / 2;
+
+        let solver = Solver.new(board);
+        let gameLost = false;
+        let timerRunning = false;
+        let timerSeconds = 0;
+        let timerTicks = 0;
+        return;
+    }
+
+    method int selectLevelMenu() {
+        var char key;
+
+        do Screen.clearScreen();
+        do drawMenuScreen();
+
+        
+        while (~(Keyboard.keyPressed() = 0)) {
+            do Sys.wait(10);
+        }
+
+        while (true) {
+            let key = Keyboard.keyPressed();
+            if ((key = 49) | (key = 69) | (key = 101)) {   // 1 / E / e -> Easy
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 1;
+            }
+            if ((key = 50) | (key = 77) | (key = 109)) {   // 2 / M / m -> Medium
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 2;
+            }
+            if ((key = 51) | (key = 72) | (key = 104)) {   // 3 / H / h -> Hard
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 3;
+            }
+            if ((key = 68) | (key = 100)) {               // D / d -> Demo
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 4;
+            }
+            if ((key = 67) | (key = 99) | (key = 52) | (key = 53)) {   // C / c / 4 / 5 -> Custom
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 5;
+            }
+            if ((key = 81) | (key = 113)) {               // Q / q -> Quit
+                while (~(Keyboard.keyPressed() = 0)) { do Sys.wait(10); }
+                return 0;
+            }
+            do Sys.wait(10);
+        }
+        return 0;
+    }
+
+    method void drawMenuScreen() {
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(16, 10, 495, 250);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(19, 13, 492, 247);
+
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(40, 20, 471, 52);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(43, 23, 468, 49);
+
+        do Output.moveCursor(3, 22);
+        do Output.printString("MINESWEEPER  SOLVER");
+
+        do Output.moveCursor(6, 19);
+        do Output.printString("SELECT DIFFICULTY LEVEL:");
+
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(55, 84, 456, 106);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(57, 86, 454, 104);
+        do Output.moveCursor(8, 9);
+        do Output.printString("[1 / E]  EASY       9 x  9    10 MINES");
+
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(55, 114, 456, 136);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(57, 116, 454, 134);
+        do Output.moveCursor(11, 9);
+        do Output.printString("[2 / M]  MEDIUM    16 x 10    25 MINES");
+
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(55, 144, 456, 166);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(57, 146, 454, 164);
+        do Output.moveCursor(14, 9);
+        do Output.printString("[3 / H]  HARD      20 x 10    44 MINES");
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(55, 174, 456, 196);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(57, 176, 454, 194);
+        do Output.moveCursor(17, 9);
+        do Output.printString("[D]      DEMO      16 x 10    LOGICAL DEMO");
+
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(55, 204, 456, 226);
+        do Screen.setColor(false);
+        do Screen.drawRectangle(57, 206, 454, 224);
+        do Output.moveCursor(19, 9);
+        do Output.printString("[4 / C]  CUSTOM    CHOOSE YOUR OWN SIZE");
+
+
+        do Output.moveCursor(21, 10);
+        do Output.printString("PRESS 1/E, 2/M, 3/H, D, 4/C TO START, Q TO QUIT");
+        return;
+    }
+
+
+    method void run() {
+        var boolean quitAll;
+        var int selectedLevel;
+
+        let quitAll = false;
+        while (~quitAll) {
+            let selectedLevel = selectLevelMenu();
+            if (selectedLevel = 0) {
+                let quitAll = true;
+            } else {
+                if (selectedLevel = 4) {
+                    do startDemo();
+                    let quitAll = gameLoop();
+                } else {
+                    if (selectedLevel = 5) {
+                        do startCustomLevel();
+                        let quitAll = gameLoop();
+                    } else {
+                        do initLevel(selectedLevel);
+                        let quitAll = gameLoop();
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+
+    method boolean gameLoop() {
+        var char key, previousKey;
+        var int solverResult;
+        var boolean exitGame, quitAll;
+
+        let exitGame = false;
+        let quitAll = false;
+        let previousKey = 0;
+        do fullDraw();
+
+        while (~exitGame) {
+            let key = Keyboard.keyPressed();
+
+            if (key = 0) {
+                let previousKey = 0;
+            } else {
+                if (previousKey = 0) {
+                    let previousKey = key;
+
+                    if ((key = 81) | (key = 113)) {   // Q/q -> Quit 
+                        let exitGame = true;
+                        let quitAll = true;
+                    } else {
+                        if ((key = 76) | (key = 108)) {   // L/l ->Level select
+                            let exitGame = true;
+                            let quitAll = false;
+                        } else {
+                            if ((key = 82) | (key = 114)) {   // R/r -> Replay 
+                                do resetCurrent();
+                                do fullDraw();
+                            } else {
+                                if ((key = 68) | (key = 100)) {   // D/d ->  demo
+                                    do startDemo();
+                                } else {
+                                    if ((~gameLost) & (~board.gameWon())) {
+                                        if (key = 130) { let cursorX = Math.max(cursorX - 1, 0); }
+                                        if (key = 131) { let cursorY = Math.max(cursorY - 1, 0); }
+                                        if (key = 132) { let cursorX = Math.min(cursorX + 1, board.getWidth() - 1); }
+                                        if (key = 133) { let cursorY = Math.min(cursorY + 1, board.getHeight() - 1); }
+
+                                        if ((key = 70) | (key = 102)) {   // F/f
+                                            do board.flag(cursorX, cursorY);
+                                        }
+
+                                        if (key = 32) {   // SPACE
+                                            do startTimer();
+                                            let gameLost = board.reveal(cursorX, cursorY);
+                                        }
+
+                                        if ((key = 72) | (key = 104)) {   // H/h -> Hint
+                                            do startTimer();
+                                            if (board.giveHint()) {
+                                                let cursorX = board.getHintX();
+                                                let cursorY = board.getHintY();
+                                            }
+                                        }
+
+                                        if ((key = 83) | (key = 115)) {   // S/s one solve
+                                            do startTimer();
+                                            let solverResult = solver.solveStep();
+                                            if (solverResult = -1) {
+                                                let gameLost = true;
+                                            }
+                                        }
+
+                                        if ((key = 65) | (key = 97)) {   // A/a automatic solve
+                                            do startTimer();
+                                            do autoSolve();
+                                        }
+
+                                        if (gameLost | board.gameWon()) {
+                                            let timerRunning = false;
+                                        }
+
+                                        do draw();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            if (timerRunning) {
+                do Sys.wait(50);
+                do addTimerTicks(1);
+            } else {
+                do Sys.wait(10);
+            }
+        }
+        return quitAll;
+    }
+
+    method void startTimer() {
+        if ((~gameLost) & (~board.gameWon())) {
+            let timerRunning = true;
+        }
+        return;
+    }
+
+    method void addTimerTicks(int amount) {
+        let timerTicks = timerTicks + amount;
+        while (timerTicks > 19) {
+            let timerTicks = timerTicks - 20;
+            if (timerSeconds < 999) {
+                let timerSeconds = timerSeconds + 1;
+            }
+            do drawHud();
+        }
+        return;
+    }
+
+    method void startDemo() {
+        do initLevel(4);
+        let timerRunning = true;
+        let gameLost = board.reveal(8, 5);
+        do fullDraw();
+
+        
+        if (autoWaitAndCheckAction()) {
+            return;
+        }
+
+        do autoSolve();
+        return;
+    }
+
+    
+    method void autoSolve() {
+        var int result, safety, action;
+        let safety = 0;
+        do startTimer();
+
+        while ((~gameLost) & (~board.gameWon()) & (safety < 1000)) {
+            let action = checkInterruptKey();
+            if (action = 1) {   // R: reset 
+                do resetCurrent();
+                do fullDraw();
+                return;
+            }
+            if (action = 2) {   // L or Q: Stop auto solve
+                let timerRunning = false;
+                do draw();
+                return;
+            }
+
+            let result = solver.solveStep();
+            if (result = -1) {
+                let gameLost = true;
+            }
+            if (result = 0) {
+                let timerRunning = false;
+                do draw();
+                return;
+            }
+
+            let safety = safety + 1;
+            do draw();
+
+
+            if (autoWaitAndCheckAction()) {
+                return;
+            }
+        }
+
+        let timerRunning = false;
+        do draw();
+        return;
+    }
+
+    method boolean autoWaitAndCheckAction() {
+        var int i, action;
+        let i = 0;
+        while (i < 10) {
+            let action = checkInterruptKey();
+            if (action = 1) {   // R: reset
+                do resetCurrent();
+                do fullDraw();
+                return true;
+            }
+            if (action = 2) {   // L or Q
+                let timerRunning = false;
+                do draw();
+                return true;
+            }
+            do Sys.wait(10);
+            let i = i + 1;
+        }
+
+        
+        if (timerRunning) {
+            do addTimerTicks(2);
+        }
+        return false;
+    }
+
+    
+    method int checkInterruptKey() {
+        var char key;
+        let key = Keyboard.keyPressed();
+        if ((key = 82) | (key = 114)) {   // R/r
+            while (~(Keyboard.keyPressed() = 0)) {
+                do Sys.wait(1);
+            }
+            return 1;
+        }
+        if ((key = 76) | (key = 108) | (key = 81) | (key = 113)) {   // L/l or Q/q
+            while (~(Keyboard.keyPressed() = 0)) {
+                do Sys.wait(1);
+            }
+            return 2;
+        }
+        return 0;
+    }
+
+    
+    method void fullDraw() {
+        do Screen.clearScreen();
+        do drawHud();
+        do board.draw(cursorX, cursorY, gameLost);
+        do drawStatus();
+        return;
+    }
+
+    method void draw() {
+        do drawHud();
+        do board.draw(cursorX, cursorY, gameLost);
+        do drawStatus();
+        return;
+    }
+
+    method void drawHud() {
+
+        do Screen.setColor(false);
+        do Screen.drawRectangle(0, 0, 511, 38);
+
+        do Screen.setColor(true);
+        do Screen.drawRectangle(18, 5, 157, 33);
+        do Screen.drawRectangle(186, 5, 325, 33);
+        do Screen.drawRectangle(354, 5, 493, 33);
+
+        do Output.moveCursor(1, 4);
+        do Output.printString("MINES ");
+        do printThreeDigits(board.getMineCount());
+
+        do Output.moveCursor(1, 25);
+        do Output.printString("FLAGS ");
+        do printThreeDigits(board.getFlagCount());
+
+        do Output.moveCursor(1, 46);
+        do Output.printString("TIME ");
+        do printThreeDigits(timerSeconds);
+        return;
+    }
+
+
+    method void drawStatus() {
+        do Screen.setColor(false);
+        do Screen.drawRectangle(0, 226, 511, 255);
+
+        if (gameLost) {
+            do Output.moveCursor(21, 13);
+            do Output.printString("BOOM!  R = REPLAY   L = LEVEL   Q = QUIT");
+        } else {
+            if (board.gameWon()) {
+                do Output.moveCursor(21, 12);
+                do Output.printString("SOLVED!  R = REPLAY   L = LEVEL   Q = QUIT");
+            }
+        }
+        return;
+    }
+
+    method void printThreeDigits(int value) {
+        if (value < 0) {
+            let value = 0;
+        }
+        if (value > 999) {
+            let value = 999;
+        }
+        if (value < 100) {
+            do Output.printChar(48);
+        }
+        if (value < 10) {
+            do Output.printChar(48);
+        }
+        do Output.printInt(value);
+        return;
+    }
+}
